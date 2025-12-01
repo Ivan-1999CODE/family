@@ -181,7 +181,7 @@
         // ==========================================
         // ⭐ 請在此處填入您的 Google Gemini API Key ⭐
         // ==========================================
-        const apiKey = "AIzaSyBwORAUO3cNO-yzy9JSI7Lk2yqSULgRckM"; // 在這裡填入，例如: const apiKey = "AIzaSy...";
+        const apiKey = "AIzaSyBwORAUO3cNO-yzy9JSI7Lk2yqSULgRckM"; // ⚠️ 請重新在此填入您的 API Key
         
         // --- 1. 資料庫 (Quiz Data) ---
         const quizData = [
@@ -570,16 +570,36 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        // 新增安全設定，避免 AI 因為提及 "Passport" 或 "Police" 等詞彙而拒絕回答
+                        safetySettings: [
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                        ]
+                    })
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`API Error: ${response.status} ${errorData.error?.message || ''}`);
+                }
                 
                 const data = await response.json();
+                
+                // 檢查是否有有效回應
+                if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+                     console.warn("API Response blocked or empty:", data);
+                     return "AI 似乎無法處理這個回答（可能觸發了安全過濾）。請嘗試換個說法再試一次。";
+                }
+
                 return data.candidates[0].content.parts[0].text;
             } catch (e) {
-                console.error(e);
-                throw e;
+                console.error("Gemini API Error:", e);
+                // 回傳錯誤訊息給前端顯示
+                throw new Error(`連線失敗: ${e.message}`);
             }
         }
 
